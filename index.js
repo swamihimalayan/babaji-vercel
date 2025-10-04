@@ -1,78 +1,49 @@
 const express = require("express");
-const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
+const admin = require("firebase-admin");
 const app = express();
+app.use(express.json());
 
-// Firebase Admin setup
-const serviceAccount = require("./serviceAccountKey.json"); // add later
+// 🔹 Initialize Firebase Admin with service key
+const serviceAccount = require("./serviceAccountKey.json");
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-const db = admin.firestore();
 
-// Gmail credentials
-const ADMIN_EMAIL = "sd2353241@gmail.com";
-const APP_PASSWORD = "YAHAN_APNA_16_DIGIT_APP_PASSWORD_DAALO"; // Gmail App Password daalna yahan
-
-// Gmail transporter setup
+// 🔹 Gmail transporter setup (App Password required)
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: ADMIN_EMAIL, pass: APP_PASSWORD },
+  auth: {
+    user: "YOUR_GMAIL_ADDRESS@gmail.com", // <-- yahan apna Gmail likho
+    pass: "soxr cnzn uklo ikdy", // <-- yahan app password paste karo (spaces same rakhna)
+  },
 });
 
-// API route
-app.get("/api/generatePin", async (req, res) => {
-  try {
-    const { phone, type } = req.query;
-    if (!phone || !type) return res.status(400).send("phone & type required");
+// 🔹 Test route
+app.get("/", (req, res) => {
+  res.send("✅ English Babaji Mail Server Running on Vercel!");
+});
 
-    const plans = {
-      classes: { days: 365, price: 99 },
-      live: { days: 7, price: 20 },
-      practice: { days: 5, price: 20 },
+// 🔹 Email send route
+app.post("/send-mail", async (req, res) => {
+  try {
+    const { to, subject, text } = req.body;
+
+    const mailOptions = {
+      from: "YOUR_GMAIL_ADDRESS@gmail.com",
+      to,
+      subject,
+      text,
     };
 
-    const plan = plans[type.toLowerCase()];
-    if (!plan) return res.status(400).send("invalid type");
-
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const now = Date.now();
-    const expiresAt = now + plan.days * 24 * 60 * 60 * 1000;
-
-    await db.collection("pins").add({
-      phone,
-      type,
-      pin,
-      price: plan.price,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt,
-      used: false,
-    });
-
-    // Email notification
-    await transporter.sendMail({
-      from: ADMIN_EMAIL,
-      to: ADMIN_EMAIL,
-      subject: `New ${type} PIN generated`,
-      text: `${phone} ka ${type} PIN ${pin} (₹${plan.price}) valid till ${new Date(
-        expiresAt
-      ).toLocaleDateString("en-IN")}`,
-    });
-
-    res.send({
-      ok: true,
-      pin,
-      type,
-      price: plan.price,
-      validTill: new Date(expiresAt).toLocaleDateString("en-IN"),
-      message: "Mail sent to admin",
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send(err.message);
+    await transporter.sendMail(mailOptions);
+    res.status(200).send({ success: true, message: "📩 Mail Sent Successfully!" });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).send({ success: false, message: error.message });
   }
 });
 
-// Run local server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// 🔹 For Vercel serverless
+module.exports = app;
